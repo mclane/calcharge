@@ -1,0 +1,16 @@
+# CalDav Server and port
+# Port5232 is the default port of the radicale server
+icalserver: 192.168.0.39
+icalport: 5232
+
+# User
+user: uli
+
+# Calendar name
+calendarfile: Ladekalender
+
+# Battery capacity
+capa: 64 # kWh
+
+# Max chargecurrent
+maxcur: 20 # A
