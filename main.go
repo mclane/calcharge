@@ -17,16 +17,20 @@ import (
 )
 
 type Config struct {
-	IcalServer   string `yaml:"icalserver"`
-	IcalPort     string `yaml:"icalport"`
-	User         string `yaml:"user"`
-	CalendarFile string `yaml:"calendarfile"`
+	Ical struct {
+		IcalUri string        `yaml:"icaluri"`
+		ChkInt  time.Duration `yaml:"chkint"`
+	} `yaml:"ical"`
 
-	Capa   int `yaml:"capa"`
-	MaxCur int `yaml:"maxcur"`
+	Capa       int `yaml:"capa"`
+	MaxCur     int `yaml:"maxcur"`
+	Mqttbroker struct {
+		Name     string `yaml:"name"`
+		Port     string `yaml:"port"`
+		User     string `yaml:"user"`
+		Password string `yaml:"password"`
+	} `yaml:"mqttbroker"`
 }
-
-const chkint = time.Minute * 30
 
 var Cfg Config
 var running bool = false
@@ -50,8 +54,7 @@ func (c *Config) getConf() *Config {
 
 func getCalData() (int, *time.Time, error) {
 	// open calendar server
-	url := "http://" + Cfg.IcalServer + ":" + Cfg.IcalPort + "/" + Cfg.User + "/" + Cfg.CalendarFile + ".ics/"
-	resp, err := http.Get(url)
+	resp, err := http.Get(Cfg.Ical.IcalUri)
 	if err != nil {
 		return 0, nil, err
 	}
@@ -104,7 +107,7 @@ var msgSubHandler mqtt.MessageHandler = func(client mqtt.Client, msg mqtt.Messag
 	asoc := int(sb)
 
 	// check calendar every chkint minutes and get target soc and time
-	if !running && time.Until(chktime.Add(chkint)) < 0 {
+	if !running && time.Until(chktime.Add(Cfg.Ical.ChkInt*time.Minute)) < 0 {
 		var e error
 		tsoc, strt, e = getCalData()
 		if e == nil {
@@ -148,7 +151,10 @@ var connectHandler mqtt.OnConnectHandler = func(client mqtt.Client) {
 }
 
 func connectToMqtt() {
-	opts := mqtt.NewClientOptions().AddBroker("tcp://192.168.0.38:1883")
+	muri := "tcp://" + Cfg.Mqttbroker.Name + ":" + Cfg.Mqttbroker.Port
+	opts := mqtt.NewClientOptions().AddBroker(muri)
+	opts.SetUsername(Cfg.Mqttbroker.User)
+	opts.SetPassword(Cfg.Mqttbroker.Password)
 	opts.SetClientID("evcc-CalCh")
 	//opts.SetDefaultPublishHandler(msgPubHandler)
 
