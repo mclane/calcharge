@@ -3,11 +3,16 @@ package main
 import (
 	"fmt"
 	"io/ioutil"
-	"math"
 	"net/http"
+	"os"
+	"os/signal"
+	"strconv"
+	"strings"
+	"syscall"
 	"time"
 
 	"github.com/apognu/gocal"
+	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"gopkg.in/yaml.v2"
 )
 
@@ -21,7 +26,13 @@ type Config struct {
 	MaxCur int `yaml:"maxcur"`
 }
 
+const chkint = time.Minute * 30
+
 var Cfg Config
+var running bool = false
+var tsoc int = 0
+var strt *time.Time
+var chktime = time.Now()
 
 func (c *Config) getConf() *Config {
 
@@ -37,16 +48,12 @@ func (c *Config) getConf() *Config {
 	return c
 }
 
-func main() {
-	// get config data
-	Cfg.getConf()
-
-	// read calendar data from server
-	// connect to server
+func getCalData() (int, *time.Time, error) {
+	// open calendar server
 	url := "http://" + Cfg.IcalServer + ":" + Cfg.IcalPort + "/" + Cfg.User + "/" + Cfg.CalendarFile + ".ics/"
 	resp, err := http.Get(url)
 	if err != nil {
-		panic(err)
+		return 0, nil, err
 	}
 	defer resp.Body.Close()
 
@@ -58,35 +65,106 @@ func main() {
 	cal.Start, cal.End = &start, &end
 	err = cal.Parse()
 	if err != nil {
-		panic(err)
+		return 0, nil, err
 	}
 
-	var strt time.Time
-	// print result
-	for _, evnt := range cal.Events {
-		fmt.Printf("%s on %s\n", evnt.Summary, evnt.Start)
-		strt = *evnt.Start
+	// check if events are planned for the next 24 h
+	if len(cal.Events) == 0 {
+		return 0, nil, fmt.Errorf("no event")
 	}
 
-	// extract target soc and target time
-	tsoc := 100
+	// return values for first event only
+	fmt.Printf("%s on %s\n", cal.Events[0].Summary, cal.Events[0].Start)
 
+	sparts := strings.Split(cal.Events[0].Summary, " ")
+	soc64, err2 := strconv.ParseInt(strings.Trim(sparts[1], "%"), 10, 32)
+	if err2 != nil {
+		return 0, nil, err2
+	}
+
+	// check if valid request
+	if sparts[0] != "SoC" {
+		return 0, nil, fmt.Errorf("keyword SoC missing")
+	}
+
+	// check if requested SoC is in reasonable range
+	if soc64 <= 0 || soc64 > 100 {
+		return 0, nil, fmt.Errorf("SoC out of range")
+	}
+
+	return int(soc64), cal.Events[0].Start, nil
+}
+
+var msgSubHandler mqtt.MessageHandler = func(client mqtt.Client, msg mqtt.Message) {
+	// get actual soc via MQTT
+	sb, err := strconv.ParseInt(string(msg.Payload()), 10, 64)
 	if err != nil {
 		panic(err)
 	}
+	asoc := int(sb)
 
-	// define charge start time
-	// get actual soc
-	asoc := 60
+	// check calendar every chkint minutes and get target soc and time
+	if !running && time.Until(chktime.Add(chkint)) < 0 {
+		var e error
+		tsoc, strt, e = getCalData()
+		if e == nil {
+			running = true
+		} else {
+			// no valid data
+			fmt.Printf("Fehler: %s\n", e)
+		}
+		chktime = time.Now()
+	}
 
-	// calculate charging time @ max charge current
-	ct := 10.0 * float64(Cfg.Capa*(tsoc-asoc)) / 230.0 / float64(Cfg.MaxCur)
-	fmt.Printf("Ladezeit: %f\n", ct)
+	if running {
+		// valid data available, calculate charging time @ max charge current
+		ct := 10.0 * float64(Cfg.Capa*(tsoc-asoc)) / 230.0 / float64(Cfg.MaxCur)
+		fmt.Printf("Ladezeit: %f\n", ct)
 
-	//calculate start time
-	tstart := strt.Add(-time.Hour * time.Duration(ct))
-	_, ctm := math.Modf(ct)
-	tstart = tstart.Add(-time.Minute * time.Duration(60*ctm))
-	fmt.Printf("Start: %v\n", tstart)
+		//calculate start time
+		tstart := strt.Add(-time.Minute * time.Duration(60*ct))
+		fmt.Printf("Start: %v\n", tstart)
 
+		// check if the point of no return is reached
+		if time.Until(tstart) <= 0 {
+			fmt.Printf("%v: nun aber volle Pulle!\n", time.Now())
+			token := client.Publish("evcc/loadpoints/1/mode/set", 0, false, "now")
+			token.Wait()
+		} else {
+			fmt.Printf("kann noch warten\n")
+		}
+		if time.Now().After(*strt) {
+			// charging finished
+			running = false
+		}
+	}
+}
+
+var connectHandler mqtt.OnConnectHandler = func(client mqtt.Client) {
+	token := client.Subscribe("evcc/loadpoints/1/socCharge", 0, msgSubHandler)
+	if token.Wait() && token.Error() != nil {
+		panic(token.Error())
+	}
+}
+
+func connectToMqtt() {
+	opts := mqtt.NewClientOptions().AddBroker("tcp://192.168.0.38:1883")
+	opts.SetClientID("evcc-CalCh")
+	//opts.SetDefaultPublishHandler(msgPubHandler)
+
+	opts.OnConnect = connectHandler
+	client := mqtt.NewClient(opts)
+	if token := client.Connect(); token.Wait() && token.Error() != nil {
+		panic(token.Error())
+	}
+}
+
+func main() {
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+
+	// get config data
+	Cfg.getConf()
+	connectToMqtt()
+	<-c
 }

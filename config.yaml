@@ -1,9 +1,14 @@
+# EVCC addon for calendar controlled charging
+
+# calendar check interval
+# interval: 30 # min. 
+
 # CalDav Server and port
 # Port5232 is the default port of the radicale server
 icalserver: 192.168.0.39
 icalport: 5232
 
-# User
+# Calendar user
 user: uli
 
 # Calendar name
@@ -14,3 +19,5 @@ capa: 64 # kWh
 
 # Max chargecurrent
 maxcur: 20 # A
+
+# MQTT server
