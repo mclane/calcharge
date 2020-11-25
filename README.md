@@ -2,7 +2,7 @@
 
 calcharge is an addon to andig's [evcc](https://github.com/andig/evcc).
 
-With calcharge you can use a standard ical calendar in order to plan charging sessions for your electric vehicle.  
+With calcharge you can use a standard ical calendar in order to plan charging sessions for your electric vehicle. Calendars can either be self-hosted (e.g. using [radicale](https://radicale.org/3.0.html)) or using services like [teamup](https://www.teamup.com/)
 
 ## Function   
 
@@ -20,7 +20,7 @@ As soon as this point appears in the past, the evcc charge mode is changed to "n
 With every new value of soc, the point of no return time is adjusted using the new actual soc.
 
 ## Installation
-As evcc, calcharge is written in Go, so a go compiler is required. Clone repository and build. Change config.yaml according to your needs. 
+As evcc, calcharge is written in Go, so a go compiler is required. Clone the repository and build. Change the config.yaml file according to your needs. 
 
 ## Remarks
 calcharge is still work in progress. Since I am new to Go, the code is certainly not very elegant; please provide hints for improvements.
