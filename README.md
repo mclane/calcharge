@@ -2,7 +2,7 @@
 
 calcharge is an addon to andig's [evcc](https://github.com/andig/evcc).
 
-With calcharge you can use a standard ical calendar in order to plan charging sessions for your electric vehicle. Calendars can either be self-hosted (e.g. using [radicale](https://radicale.org/3.0.html)) or using services like [teamup](https://www.teamup.com/)
+With calcharge you can use a standard ical calendar in order to plan charging sessions for your electric vehicle. Calendars can either be self-hosted (e.g. using [radicale](https://radicale.org/3.0.html)) or using services like [teamup](https://www.teamup.com/).
 
 ## Function   
 
@@ -17,7 +17,9 @@ from the desired event start time and gives the "point of no return" time.
 If this time is still in the future, the evcc charging mode is unchanged. 
 As soon as this point appears in the past, the evcc charge mode is changed to "now".  
 
-With every new value of soc, the point of no return time is adjusted using the new actual soc.
+With every new value of soc, the point of no return time is adjusted using the new actual soc.  
+
+This algorithm has been described by Timo Reimann in the evcc slack channel.
 
 ## Installation
 As evcc, calcharge is written in Go, so a go compiler is required. Clone the repository and build. Change the config.yaml file according to your needs. 
