@@ -1,6 +1,8 @@
 # calcharge
 
-calcharge is an addon to andig's [evcc](https://github.com/andig/evcc).
+calcharge is an addon to andig's [evcc](https://github.com/andig/evcc).  
+
+![calcharge](Ladekalender.png?raw=true "Title")  
 
 With calcharge you can use a standard ical calendar in order to plan charging sessions for your electric vehicle. Calendars can either be self-hosted (e.g. using [radicale](https://radicale.org/3.0.html)) or using services like [teamup](https://www.teamup.com/).
 
